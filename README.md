@@ -12,15 +12,19 @@ spatial datasets.
 
 ## Status
 
-This repo is being reorganized out of several previously scattered project directories. The core Stage 2
-model code (`stage2_pathway_vgae/`) is in the middle of being refactored from four large, near-duplicate,
-hardcoded-path scripts into a clean, installable `graphist` Python package (config-driven, one shared
-model implementation, tests). Until that refactor lands, `stage2_pathway_vgae/` still contains the
-original per-dataset scripts as-is.
+The Stage 2 model code (`stage2_pathway_vgae/`) has been refactored from four large, near-duplicate,
+hardcoded-path scripts (still kept for reference under `stage2_pathway_vgae/legacy/`) into a clean,
+installable `graphist` Python package: one shared model/training implementation, per-dataset YAML configs
+instead of copy-pasted constants, and a 38-test pytest suite on synthetic fixtures. The refactor has been
+validated against the original code: for PDAC and BRCA-PACSI, a full training run of the refactored
+pipeline reproduces the pathway-activity output of a freshly-run original script at **1.0000 Pearson
+correlation across all 675 pathway dimensions**. Maynard and BRCA-COMMOT run end-to-end successfully
+(smoke-tested, not deep-validated). See `stage2_pathway_vgae/graphist/` for the package and
+`stage2_pathway_vgae/configs/*.yaml` for the per-dataset settings.
 
 Raw datasets and large model-output artifacts are **not** included in this repo (they live locally under
 `~/Documents/BulkToST/Dataset` and `~/Documents/BulkToST/Res-*`) — this repo holds code, configs, docs,
-and figures only.
+and figures only. `stage1_bulk_regression_R/` and `downstream_analysis/` have not been refactored yet.
 
 ## Layout
 
@@ -39,6 +43,8 @@ and figures only.
 
 ## Requirements
 
-No environment is pinned yet (tracked as part of the Stage 2 refactor). The Stage 2 model currently runs
-against: Python 3.10, PyTorch 1.13.1, PyTorch Geometric 2.5.3, scanpy 1.9.1, anndata 0.8.0,
-scikit-learn 1.2.1. Stage 1 is plain R (Scissor + standard Bioconductor/CRAN packages).
+Stage 2 (`graphist`): Python 3.10, PyTorch 1.13.1, PyTorch Geometric 2.5.3, scanpy 1.9.1, anndata 0.8.0,
+scikit-learn 1.2.1 — see `stage2_pathway_vgae/requirements.txt` / `pyproject.toml`. Install with
+`pip install -e stage2_pathway_vgae/`, then `pytest stage2_pathway_vgae/tests/` or
+`python stage2_pathway_vgae/scripts/run_pipeline.py --config stage2_pathway_vgae/configs/pdac.yaml`.
+Stage 1 is plain R (Scissor + standard Bioconductor/CRAN packages).
