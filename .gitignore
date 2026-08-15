@@ -5,3 +5,8 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 *.pdf.tmp
+
+# Validation scratch (large real-data outputs, backups, logs -- not source)
+validation/baseline_backup/
+validation/outputs/
+validation/logs/

@@ -57,13 +57,18 @@ class GraphistModel(nn.Module):
     ):
         super().__init__()
 
+        # NOTE: construction order matches the original SVEGA class exactly
+        # (gc_decoder, then gc1/gc2/gc3/dc, then decoder last). Each of these
+        # submodules draws from the global torch RNG during weight init
+        # (xavier_uniform_ / uniform_), so under a fixed seed, construction
+        # order determines which random draws each layer gets -- reordering
+        # would silently change the trained model despite an identical seed.
+        self.gc_decoder = GraphConvolution(n_gmvs, input_dim, p_drop, act=lambda x: x)
+
         self.gc1 = GraphConvolution(input_dim, gcn_hidden1, p_drop, act=F.relu)
         self.gc2 = GraphConvolution(gcn_hidden1, n_gmvs, p_drop, act=lambda x: x)
         self.gc3 = GraphConvolution(gcn_hidden1, n_gmvs, p_drop, act=lambda x: x)
         self.dc = InnerProductDecoder(p_drop, act=lambda x: x)
-
-        # Graph-smoothed feature reconstruction decoder (spatial regularizer)
-        self.gc_decoder = GraphConvolution(n_gmvs, input_dim, p_drop, act=lambda x: x)
 
         # Pathway-masked expression reconstruction decoder
         self.decoder = PathwayMaskedDecoder(mask=mask.T, positive_decoder=positive_decoder)
