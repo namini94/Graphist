@@ -38,8 +38,15 @@ def main():
     if config.analysis.mclust_labels_path:
         labels = load_mclust_labels(config.analysis.mclust_labels_path)
         adata.obs["labels"] = pd.Categorical(labels)
-        ari = adjusted_rand_index(adata.obs[config.data.annotation_column], adata.obs["labels"])
-        print(f"ARI (Mclust vs. {config.data.annotation_column}): {ari:.4f}")
+        # Some datasets (e.g. Maynard) have spots with no ground-truth annotation;
+        # the original scripts drop those before scoring ARI (see
+        # `sub_adata = adata[~pd.isnull(adata.obs['Ground-truth'])]` in legacy/VGAE-PA-Maynard.py).
+        annotated = adata.obs[config.data.annotation_column].notna()
+        ari = adjusted_rand_index(
+            adata.obs.loc[annotated, config.data.annotation_column], adata.obs.loc[annotated, "labels"]
+        )
+        print(f"ARI (Mclust vs. {config.data.annotation_column}), "
+              f"{annotated.sum()}/{adata.n_obs} annotated spots: {ari:.4f}")
 
     if config.analysis.de_enabled:
         gc = config.analysis.de_group_column

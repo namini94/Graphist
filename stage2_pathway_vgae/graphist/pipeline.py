@@ -37,9 +37,18 @@ def load_dataset(config: DatasetConfig):
         if dc.annotation_relabel:
             first_col = annot.columns[0]
             annot[first_col] = annot[first_col].replace(dc.annotation_relabel)
-        adata.obs = adata.obs.join(annot)
-        if dc.annotation_column not in adata.obs.columns and len(annot.columns) == 1:
-            adata.obs[dc.annotation_column] = adata.obs[annot.columns[0]]
+        if dc.annotation_positional:
+            # Index doesn't correspond to spot barcodes -- assume matching row order
+            # (matches the original scripts' `pd.Categorical(GT.iloc[:, 0])` pattern).
+            assert len(annot) == adata.n_obs, (
+                f"annotation_positional=True requires the annotation file to have exactly "
+                f"one row per spot ({len(annot)} rows vs. {adata.n_obs} spots)"
+            )
+            adata.obs[dc.annotation_column] = pd.Categorical(annot.iloc[:, 0].values)
+        else:
+            adata.obs = adata.obs.join(annot)
+            if dc.annotation_column not in adata.obs.columns and len(annot.columns) == 1:
+                adata.obs[dc.annotation_column] = adata.obs[annot.columns[0]]
 
     if dc.annotation_column_source and dc.annotation_column_source in adata.obs.columns:
         adata.obs[dc.annotation_column] = adata.obs[dc.annotation_column_source]

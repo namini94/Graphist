@@ -8,6 +8,7 @@ data:
   annotation_file: "/Users/naminiyakan/Documents/BulkToST/Dataset/Maynard/151673/processed/GT-labels.csv"
   annotation_sep: ","
   annotation_column: Ground-truth
+  annotation_positional: true  # GT-labels.csv is indexed by row number, not spot barcode
 
 preprocess:
   min_cells: 50

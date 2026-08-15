@@ -24,6 +24,11 @@ class DataConfig:
     annotation_column: str = "annotations"  # obs column used for ARI / boxplot grouping
     annotation_column_source: Optional[str] = None  # if set, copy obs[source] -> obs[annotation_column]
     annotation_relabel: Dict[str, str] = field(default_factory=dict)  # raw value -> display value
+    # Some annotation files (e.g. Maynard's GT-labels.csv) are indexed by plain row
+    # number rather than spot barcode, so an index-aligned join can't be used --
+    # the original script instead assumes matching row order and assigns
+    # positionally. Set this to True to reproduce that behavior.
+    annotation_positional: bool = False
 
     # Optional Stage-1 (Scissor-style regression) spot-selection CSV, joined in as an
     # extra obs column. Used by PDAC/BRCA-PACSI to group spots into
