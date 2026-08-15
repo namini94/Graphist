@@ -1,0 +1,80 @@
+# BRCA-PACSI (breast cancer Visium sample, survival phenotype)
+# Values match the original stage2_pathway_vgae/legacy/VGAE-PA-ST-PACSI.py.
+name: brca_pacsi
+
+data:
+  loading_mode: visium
+  data_root: "/Users/naminiyakan/Documents/BulkToST/Dataset/BRCA-PACSI/outs"
+  annotation_file: "/Users/naminiyakan/Documents/BulkToST/Dataset/BRCA-PACSI/Nami-Annotations.csv"
+  annotation_sep: ","
+  annotation_column: annotations
+  annotation_relabel:
+    fat: Fat
+    necrosis: Necrosis
+    tumor: Invasive Carcinoma
+    immune: Immune Cell
+    fibrous: Fibrous Tissue
+    Not Annotated: "na"
+  selection_file: "/Users/naminiyakan/Documents/BulkToST/Res-BRCA-PACSI/selected_al3e-2.csv"
+  selection_sep: ","
+
+preprocess:
+  min_cells: 50
+  min_counts: 10
+  target_sum: 1000000
+  n_top_genes: 5000
+  use_count_layer: true
+  n_pca_components: 200
+  pca_seed: 42
+
+model:
+  gmt_path: "/Users/naminiyakan/Documents/VEGA_Code/sci-plex/reactomes.gmt"
+  add_nodes: 1
+  min_genes: 0
+  max_genes: 5000
+  gcn_hidden1: 800
+  p_drop: 0.2
+  dropout: 0.1
+  positive_decoder: true
+  k_neighbors: 12
+
+train:
+  seed: 2024
+  epochs: 100
+  lr: 0.0001
+  decay: 0.0005
+  rec_w: 1000
+  gcn_w: 0.1
+  gcn_rec_w: 10  # original: rec_w / 100 (PACSI kept PDAC's weighting, unlike Maynard/COMMOT)
+
+analysis:
+  output_dir: "./outputs/brca_pacsi"
+  mclust_labels_path: "/Users/naminiyakan/Documents/BulkToST/Res-BRCA-PACSI/Graphencode/latent/Mclust_labels.csv"
+  pathways_to_plot:
+    - REACTOME_GPCR_DOWNSTREAM_SIGNALING
+    - REACTOME_ADAPTIVE_IMMUNE_SYSTEM
+    - REACTOME_MYOGENESIS
+    - REACTOME_TRANSMEMBRANE_TRANSPORT_OF_SMALL_MOLECULES
+    - REACTOME_PHOSPHOLIPID_METABOLISM
+    - REACTOME_GOLGI_ASSOCIATED_VESICLE_BIOGENESIS
+    - REACTOME_INTERFERON_SIGNALING
+    - REACTOME_EXTRACELLULAR_MATRIX_ORGANIZATION
+  boxplot_pathways:
+    - REACTOME_GPCR_DOWNSTREAM_SIGNALING
+    - REACTOME_ADAPTIVE_IMMUNE_SYSTEM
+    - REACTOME_MYOGENESIS
+    - REACTOME_TRANSMEMBRANE_TRANSPORT_OF_SMALL_MOLECULES
+    - REACTOME_PHOSPHOLIPID_METABOLISM
+    - REACTOME_GOLGI_ASSOCIATED_VESICLE_BIOGENESIS
+  boxplot_palette:
+    Invasive Carcinoma: seagreen
+    Fibrous Tissue: darkorchid
+    Immune Cell: gold
+    Fat: lightskyblue
+    Necrosis: coral
+    "na": gray
+  de_enabled: true
+  de_group_column: selection
+  de_group1: "Graphist (-)"
+  de_group2: "Graphist (+)"
+  de_mode: vanilla

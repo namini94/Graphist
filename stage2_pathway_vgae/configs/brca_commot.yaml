@@ -1,0 +1,59 @@
+# BRCA-COMMOT (breast cancer Visium sample, cell-type annotated)
+# Values match the original stage2_pathway_vgae/legacy/VGAE-PA-ST-COMMOT.py.
+name: brca_commot
+
+data:
+  loading_mode: visium
+  data_root: "/Users/naminiyakan/Documents/BulkToST/Dataset/BRCA-COMMOT/outs"
+  annotation_file: "/Users/naminiyakan/Documents/BulkToST/Dataset/BRCA-COMMOT/processed/BRCA-COMMOT-Metadata.tsv"
+  annotation_sep: "\t"
+  annotation_column: celltype
+  annotation_column_source: annot_type
+  # Note: the original script also derives a second, finer-grained
+  # `fine_celltype` (from `fine_annot_type`) and runs a second Mclust/ARI
+  # comparison against it. Only the coarse `celltype` comparison is
+  # represented in this config for now.
+
+preprocess:
+  min_cells: 50
+  min_counts: 10
+  target_sum: 1000000
+  n_top_genes: 5000
+  use_count_layer: true
+  n_pca_components: 200
+  pca_seed: 42
+
+model:
+  gmt_path: "/Users/naminiyakan/Documents/VEGA_Code/sci-plex/reactomes.gmt"
+  add_nodes: 1
+  min_genes: 0
+  max_genes: 5000
+  gcn_hidden1: 800
+  p_drop: 0.2
+  dropout: 0.1
+  positive_decoder: true
+  k_neighbors: 12
+
+train:
+  seed: 2024
+  epochs: 100
+  lr: 0.0001
+  decay: 0.0005
+  rec_w: 1000
+  gcn_w: 0.1
+  gcn_rec_w: 1000  # original: full rec_w (not /100, unlike PDAC/PACSI)
+
+analysis:
+  output_dir: "./outputs/brca_commot"
+  mclust_labels_path: "/Users/naminiyakan/Documents/BulkToST/Res-BRCA-COMMOT/Graphencode/latent/Mclust_labels.csv"
+  pathways_to_plot:
+    - REACTOME_IMMUNE_SYSTEM
+    - REACTOME_GPCR_LIGAND_BINDING
+    - REACTOME_METABOLISM_OF_PROTEINS
+    - REACTOME_TRANSMEMBRANE_TRANSPORT_OF_SMALL_MOLECULES
+  boxplot_pathways: []
+  de_enabled: true
+  de_group_column: celltype
+  de_group1: "Surrounding tumor"
+  de_group2: "Tumor"
+  de_mode: vanilla

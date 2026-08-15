@@ -1,0 +1,65 @@
+# PDAC (pancreatic ductal adenocarcinoma, sample PDAC-A ST1)
+# Values match the original stage2_pathway_vgae/legacy/VGAE-PA-ST-PDAC.py exactly.
+name: pdac
+
+data:
+  loading_mode: manual
+  counts_file: "/Users/naminiyakan/Documents/BulkToST/Dataset/Raw-PDAC/PDAC/PDAC-A ST1/PDAC-A-ST1-filtered.txt"
+  meta_file: "/Users/naminiyakan/Documents/BulkToST/Dataset/Raw-PDAC/PDAC/PDAC-A ST1/STAGE-PDAC-A-ST1-meta.txt"
+  annotation_column: human_anno_region  # already present in meta_file, no separate annotation_file needed
+  selection_file: "/Users/naminiyakan/Documents/BulkToST/Res-PDAC/DDX60L_selected_al5e-1.csv"
+  selection_sep: ","
+
+preprocess:
+  min_cells: 20
+  min_counts: 10
+  target_sum: 1000000
+  n_top_genes: 5000
+  use_count_layer: false
+  n_pca_components: 200
+  pca_seed: 42
+
+model:
+  gmt_path: "/Users/naminiyakan/Documents/VEGA_Code/sci-plex/reactomes.gmt"
+  add_nodes: 1
+  min_genes: 0
+  max_genes: 5000
+  gcn_hidden1: 800
+  p_drop: 0.2
+  dropout: 0.1
+  positive_decoder: true
+  k_neighbors: 12
+
+train:
+  seed: 2024
+  epochs: 200
+  lr: 0.0001
+  decay: 0.0005
+  rec_w: 1000
+  gcn_w: 0.1
+  gcn_rec_w: 10  # original: rec_w / 100
+
+analysis:
+  output_dir: "./outputs/pdac"
+  mclust_labels_path: "/Users/naminiyakan/Documents/BulkToST/Res-PDAC/Graphencode/latent/Mclust_labels.csv"
+  pathways_to_plot:
+    - REACTOME_DOWNSTREAM_SIGNALING_EVENTS_OF_B_CELL_RECEPTOR_BCR
+    - REACTOME_EXTRACELLULAR_MATRIX_ORGANIZATION
+    - REACTOME_CELL_JUNCTION_ORGANIZATION
+  boxplot_pathways:
+    - REACTOME_CELL_JUNCTION_ORGANIZATION
+    - REACTOME_PHASE_II_CONJUGATION
+    - REACTOME_EXTRACELLULAR_MATRIX_ORGANIZATION
+    - REACTOME_COMPLEMENT_CASCADE
+    - REACTOME_IMMUNE_SYSTEM
+    - REACTOME_DEGRADATION_OF_THE_EXTRACELLULAR_MATRIX
+  boxplot_palette:
+    Cancer region: blue
+    Pancreatic tissue: green
+    Duct epithelium: orange
+    Stroma: red
+  de_enabled: true
+  de_group_column: selection
+  de_group1: "Graphist (-)"
+  de_group2: null  # one-vs-rest
+  de_mode: vanilla

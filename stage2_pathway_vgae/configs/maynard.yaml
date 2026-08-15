@@ -1,0 +1,47 @@
+# Maynard DLPFC (10x Visium sample 151673, expert cortical-layer ground truth)
+# Values match the original stage2_pathway_vgae/legacy/VGAE-PA-Maynard.py.
+name: maynard
+
+data:
+  loading_mode: visium
+  data_root: "/Users/naminiyakan/Documents/BulkToST/Dataset/Maynard/151673/outs"
+  annotation_file: "/Users/naminiyakan/Documents/BulkToST/Dataset/Maynard/151673/processed/GT-labels.csv"
+  annotation_sep: ","
+  annotation_column: Ground-truth
+
+preprocess:
+  min_cells: 50
+  min_counts: 10
+  target_sum: 1000000
+  n_top_genes: 5000
+  use_count_layer: true
+  n_pca_components: 200
+  pca_seed: 42
+
+model:
+  gmt_path: "/Users/naminiyakan/Documents/VEGA_Code/sci-plex/reactomes.gmt"
+  add_nodes: 1
+  min_genes: 0
+  max_genes: 5000
+  gcn_hidden1: 800
+  p_drop: 0.2
+  dropout: 0.1
+  positive_decoder: true
+  k_neighbors: 12
+
+train:
+  seed: 2024
+  epochs: 100
+  lr: 0.0001
+  decay: 0.0005
+  rec_w: 1000
+  gcn_w: 0.1
+  gcn_rec_w: 1000  # original: full rec_w (not /100, unlike PDAC/PACSI)
+
+analysis:
+  output_dir: "./outputs/maynard"
+  mclust_labels_path: "/Users/naminiyakan/Documents/BulkToST/Res-Maynard/Graphencode/latent/Mclust_labels_200.csv"
+  pathways_to_plot:
+    - REACTOME_COLLAGEN_FORMATION
+  boxplot_pathways: []
+  de_enabled: false  # the original Maynard script had this analysis section removed entirely
