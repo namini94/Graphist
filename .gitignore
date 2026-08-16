@@ -11,7 +11,6 @@ validation/baseline_backup/
 validation/outputs/
 validation/logs/
 
-# Benchmarking scratch (real downloads + raw run outputs -- not source)
+# Benchmarking scratch: real downloads and per-cell prediction dumps are not source,
+# but small summary tables in benchmarking/results/ (e.g. *_summary.csv) are committed.
 benchmarking/data/
-benchmarking/results/*
-!benchmarking/results/.gitkeep
