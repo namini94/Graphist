@@ -10,3 +10,8 @@ __pycache__/
 validation/baseline_backup/
 validation/outputs/
 validation/logs/
+
+# Benchmarking scratch (real downloads + raw run outputs -- not source)
+benchmarking/data/
+benchmarking/results/*
+!benchmarking/results/.gitkeep
