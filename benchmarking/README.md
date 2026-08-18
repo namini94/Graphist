@@ -313,6 +313,39 @@ methodological competitor, in phenotype-like diffuse-crosstalk conditions"** —
 baseline." GSVA remains a real, cheap, surprisingly strong competitor worth acknowledging directly in the
 paper, not one to bury.
 
+#### Fifteenth scenario: is sim14 a lucky single point, or a robust regime?
+
+`sim15_dose_*` sweeps the number of diffuse cross-pathway interaction pairs (0 to 144, the maximum
+possible for a 6-pathway program against 24 background pathways) at fixed 6x strength, everything else
+identical to sim14 — turning the single sim14 data point into a full dose-response curve. Full results in
+`results/task_b_dose_response.csv`; mean Pearson correlation (full 30-pathway panel):
+
+| n_pairs | GRAPHIST | VEGA | STAN | ULM | GSVA | GRAPHIST − STAN |
+|---|---|---|---|---|---|---|
+| 0 | 0.841 | 0.836 | **0.944** | 0.833 | 0.825 | −0.103 |
+| 5 | 0.764 | 0.747 | 0.759 | 0.688 | 0.769 | +0.006 |
+| 10 | 0.712 | 0.695 | 0.676 | 0.532 | 0.696 | +0.036 |
+| 15 (sim14) | 0.616 | 0.591 | 0.544 | 0.440 | 0.647 | +0.072 |
+| 25 | 0.583 | 0.562 | 0.480 | 0.370 | 0.571 | +0.103 |
+| **40** | **0.442** | 0.425 | 0.314 | 0.246 | 0.434 | **+0.128 (peak)** |
+| 70 | 0.298 | 0.278 | 0.227 | 0.166 | 0.305 | +0.071 |
+| 100 | 0.245 | 0.221 | 0.183 | 0.149 | 0.195 | +0.062 |
+| 144 (max) | 0.203 | 0.178 | 0.147 | 0.113 | 0.144 | +0.056 |
+
+**This is a genuine dose-response, not a coin flip at one setting.** The crossover happens almost
+immediately (between 0 and 5 pairs — a small amount of diffuse crosstalk is enough to flip the winner),
+GRAPHIST's margin over STAN grows monotonically up to a peak around 40 pairs (~28% of the maximum possible
+density), then narrows again at very high density as absolute performance floors out for every method (144
+pairs is an extreme, near-saturated regime where nothing recovers pathway identity well). The advantage
+holds across a wide, plausible middle range (5-144 pairs), not just the one point sim14 happened to use.
+
+**Two other patterns worth having in the paper**: (1) GRAPHIST beats its own VEGA ablation at *every single
+point* on the curve (gap 0.005-0.025, small but universally positive) — the spatial-graph advantage is
+unconditional here, unlike the STAN advantage which specifically requires crosstalk to be present at all.
+(2) The GSVA comparison oscillates around zero the whole way (gap from −0.030 to +0.059, no consistent
+winner) — reinforcing that GSVA is a genuinely close, real competitor throughout the regime, not just an
+artifact of sim14's specific setting.
+
 **A stronger, more direct version of this connection is buildable but not yet done**: an end-to-end scenario
 that explicitly simulates a bulk phenotype variable correlated with the group A/B assignment, runs it
 through GRAPHIST's actual Stage 1 (bulk-to-spot regression) to *recover* the phenotype-associated spots, then
