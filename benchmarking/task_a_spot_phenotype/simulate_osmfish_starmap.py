@@ -41,10 +41,11 @@ import pandas as pd
 class LoomDataset:
     genes: List[str]
     expr: np.ndarray  # cells x genes
-    labels: np.ndarray  # per-cell group label (string)
+    labels: np.ndarray  # per-cell group label (string) -- defines the pos/neg phenotype groups
     x: np.ndarray
     y: np.ndarray
     cell_ids: List[str]
+    celltype: np.ndarray  # per-cell granular cell-type label -- SpaPheno's composition feature space
 
 
 def _decode(arr):
@@ -52,21 +53,30 @@ def _decode(arr):
 
 
 def load_osmfish(path: str, label_col: str = "Region") -> LoomDataset:
-    """``label_col``: "Region" (anatomical layer/region) or "ClusterName" (cell type)."""
+    """``label_col``: "Region" (anatomical layer/region) or "ClusterName" (cell type).
+
+    ``celltype`` is always ClusterName (the finest-grained label available), used as
+    SpaPheno's composition feature space regardless of which column defines the
+    phenotype groups for a given scenario.
+    """
     with h5py.File(path, "r") as f:
         genes = list(_decode(f["row_attrs"]["Gene"][:]))
         expr = f["matrix"][:].T.astype(float)  # -> cells x genes
         labels = _decode(f["col_attrs"][label_col][:])
+        celltype = _decode(f["col_attrs"]["ClusterName"][:])
         region = _decode(f["col_attrs"]["Region"][:])
         x = f["col_attrs"]["X"][:]
         y = f["col_attrs"]["Y"][:]
         cell_ids = list(_decode(f["col_attrs"]["CellID"][:]))
     keep = region != "Excluded"  # "Excluded" is always defined on Region, not ClusterName
     return LoomDataset(genes, expr[keep], labels[keep], x[keep], y[keep],
-                        [c for c, k in zip(cell_ids, keep) if k])
+                        [c for c, k in zip(cell_ids, keep) if k], celltype[keep])
 
 
 def load_starmap(path: str, batch: int = 0) -> LoomDataset:
+    """No separate coarse/fine label pair is available for STARmap; ``celltype`` falls
+    back to the same "Clusters" label used to define phenotype groups.
+    """
     with h5py.File(path, "r") as f:
         genes = list(_decode(f["row_attrs"]["Gene"][:]))
         expr = f["matrix"][:].T.astype(float)
@@ -76,7 +86,7 @@ def load_starmap(path: str, batch: int = 0) -> LoomDataset:
     keep = (labels != "NA") & (batch_id == batch)
     cell_ids = [f"cell{i}" for i in range(expr.shape[0])]
     return LoomDataset(genes, expr[keep], labels[keep], coords[keep, 0], coords[keep, 1],
-                        [c for c, k in zip(cell_ids, keep) if k])
+                        [c for c, k in zip(cell_ids, keep) if k], labels[keep])
 
 
 def build_pseudobulk_cohort(
@@ -87,13 +97,23 @@ def build_pseudobulk_cohort(
     cells_per_sample: int = 200,
     seed: int = 0,
 ) -> tuple:
-    """Returns (bulk_expr [samples x genes], phenotype [samples], ground_truth [cells] in {-1,0,1})."""
+    """Returns (bulk_expr [samples x genes], bulk_composition [samples x celltypes],
+    phenotype [samples], ground_truth [cells] in {-1,0,1}).
+
+    ``bulk_composition`` is the cell-type proportion of the exact same resampled cells
+    used to build ``bulk_expr`` for that pseudo-bulk sample (SpaPheno's native feature
+    space) -- built from the same draw, not a separate simulation, so the gene-expression
+    cohort (GRAPHIST/Scissor) and composition cohort (SpaPheno) are perfectly consistent.
+    """
     rng = np.random.default_rng(seed)
     pos_idx = np.where(np.isin(ds.labels, pos_values))[0]
     neg_idx = np.where(np.isin(ds.labels, neg_values))[0]
     assert len(pos_idx) > 0 and len(neg_idx) > 0, "pos/neg groups must be non-empty"
 
+    all_celltypes = sorted(set(ds.celltype))
+
     bulk_rows = []
+    composition_rows = []
     phenotypes = []
     for _ in range(n_bulk_samples):
         frac_pos = rng.uniform(0.0, 1.0)
@@ -105,8 +125,13 @@ def build_pseudobulk_cohort(
         bulk_rows.append(ds.expr[chosen].mean(axis=0))
         phenotypes.append(frac_pos)
 
+        chosen_types = ds.celltype[chosen]
+        counts = pd.Series(chosen_types).value_counts()
+        composition_rows.append([counts.get(ct, 0) / len(chosen) for ct in all_celltypes])
+
     bulk_expr = pd.DataFrame(np.array(bulk_rows), columns=ds.genes,
                               index=[f"pseudobulk{i}" for i in range(n_bulk_samples)])
+    bulk_composition = pd.DataFrame(np.array(composition_rows), columns=all_celltypes, index=bulk_expr.index)
     phenotype = pd.Series(phenotypes, index=bulk_expr.index, name="positive_fraction")
 
     ground_truth = np.zeros(len(ds.labels), dtype=int)
@@ -114,7 +139,7 @@ def build_pseudobulk_cohort(
     ground_truth[np.isin(ds.labels, neg_values)] = -1
     ground_truth = pd.Series(ground_truth, index=ds.cell_ids, name="ground_truth")
 
-    return bulk_expr, phenotype, ground_truth
+    return bulk_expr, bulk_composition, phenotype, ground_truth
 
 
 # Scenarios, ordered easy -> hard, chosen to mirror SpaPheno's own protocol (including their
@@ -150,17 +175,19 @@ def main():
     else:
         ds = load_starmap(os.path.join(args.data_dir, "mpfc_starmap.loom"))
 
-    bulk_expr, phenotype, ground_truth = build_pseudobulk_cohort(
+    bulk_expr, bulk_composition, phenotype, ground_truth = build_pseudobulk_cohort(
         ds, spec["pos"], spec["neg"],
         n_bulk_samples=args.n_bulk_samples, cells_per_sample=args.cells_per_sample, seed=args.seed,
     )
 
     os.makedirs(args.out_dir, exist_ok=True)
     bulk_expr.T.to_csv(os.path.join(args.out_dir, "bulk_expression.csv"))  # genes x samples for R convention
+    bulk_composition.to_csv(os.path.join(args.out_dir, "bulk_composition.csv"))  # samples x celltypes
     phenotype.to_csv(os.path.join(args.out_dir, "bulk_phenotype.csv"))
     pd.DataFrame(ds.expr, columns=ds.genes, index=ds.cell_ids).T.to_csv(
         os.path.join(args.out_dir, "st_expression.csv"))  # genes x cells
     pd.DataFrame({"x": ds.x, "y": ds.y}, index=ds.cell_ids).to_csv(os.path.join(args.out_dir, "st_coords.csv"))
+    pd.Series(ds.celltype, index=ds.cell_ids, name="celltype").to_csv(os.path.join(args.out_dir, "st_celltype.csv"))
     ground_truth.to_csv(os.path.join(args.out_dir, "st_ground_truth.csv"))
 
     spatial_adata = AnnData(np.zeros((len(ds.cell_ids), 1)))

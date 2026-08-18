@@ -54,10 +54,26 @@ benchmark.
 
 ## Status
 
-Design phase complete (this README + directory skeleton). Nothing has been run yet — see the phased
-roadmap below. **Real dataset downloads are blocked on disk space** (check `df -h /` before starting
-Task A or Task B's real-data proxies; the synthetic simulator in Task B has no such dependency and can
-be built first if disk space isn't available yet).
+**Task A, dataset 1 (osmFISH/STARmap) done: GRAPHIST vs. Scissor vs. SpaPheno, 5 scenarios.**
+Code in `task_a_spot_phenotype/`, results in `results/task_a_summary.csv`. Honest summary — no method
+wins everywhere:
+
+| Scenario | Winner (positive F1) | Notes |
+|---|---|---|
+| osmfish_easy (Layer 4 vs 6) | SpaPheno (0.59) > GRAPHIST (0.46) ≈ Scissor (0.45) | Well-segregated regions with distinct dominant cell types — SpaPheno's composition features are a natural fit |
+| osmfish_medium (Pyramidal L2-3 vs Inhibitory Vip) | SpaPheno (0.52) >> GRAPHIST/Scissor (0.007) | **Caveat**: for this scenario the phenotype-defining label *is* the finest cell-type label, so SpaPheno's composition feature is close to a direct encoding of the phenotype — treat this result as inflated, not a fair difficulty-matched comparison |
+| osmfish_hard (Layer 2-3 lateral vs medial) | GRAPHIST (0.093) > Scissor (0.007) > SpaPheno (0.000) | Same cell types on both sides of a subtle spatial boundary — composition carries no signal at all here, only spatially-regularized raw expression does |
+| starmap_easy (eL2/3 vs eL6) | GRAPHIST ≈ Scissor (0.71) > SpaPheno (0.64) | All three reasonable; GRAPHIST/Scissor edge out on this platform |
+| starmap_hard (eL6-1 vs eL6-2) | SpaPheno (0.46) ≈ GRAPHIST ≈ Scissor (0.41-0.42) | Small margin, all three find real signal (unlike the osmFISH hard case) |
+
+**Takeaway**: GRAPHIST's spatial-network regularization on raw expression has a specific edge when two
+phenotype groups share cell-type composition but differ in fine spatial position (osmfish_hard);
+SpaPheno's cell-type-composition approach has an edge when phenotype correlates with dominant cell-type
+identity. Neither dominates across the board on this dataset — noted honestly rather than framed as a
+clean win. SpaLinker not yet run (needs the RCC dataset, Task A step 2).
+
+**Real dataset downloads for Task A step 2 / Task B real-data proxies are still disk-space-gated** (check
+`df -h /` first). Task B's synthetic simulator has no such dependency.
 
 ## Roadmap
 
