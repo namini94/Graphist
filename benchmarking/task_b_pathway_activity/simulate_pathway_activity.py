@@ -26,8 +26,26 @@ Outputs:
   <out_dir>/true_de_pathways.csv -- list of pathways with an injected group effect
   <out_dir>/pathways.gmt         -- the pathway subset used (so every method sees the
                                      same gene-pathway definitions)
+
+Two nonlinearity knobs, in increasing order of how fundamentally they break the linear
+generative assumption (see --nonlinearity and --n-interactions):
+  - "saturating": a monotonic tanh compression. Found empirically to be an insufficient
+    stress test -- Spearman correlation stayed higher than Pearson for every method
+    tested, meaning rank order survived well enough that linear methods (which a Pearson
+    correlation with a monotonically-transformed linear signal still rewards) barely
+    noticed. A real result, not a null one: it shows *why* a harder nonlinearity is
+    needed, not just that one wasn't tried.
+  - interaction terms (--n-interactions): some genes' expression additionally depends on
+    the PRODUCT of two pathways' activities, not a linear combination of each
+    independently. No fixed linear gene-pathway design matrix D can represent a bilinear
+    term Y ~ activity_p1 * activity_p2 for a per-spot-independent linear solve (which is
+    exactly how STAN and any other per-spot ridge/regression method operates) --
+    structurally, only a method that learns one shared nonlinear function across all
+    spots jointly (e.g. GRAPHIST's GCN encoder, whose weights are fit across the whole
+    dataset at once) has any architectural path to compensate for it.
 """
 import argparse
+import itertools
 import os
 from collections import OrderedDict
 from typing import List, Tuple
@@ -122,17 +140,104 @@ def simulate_true_activity(
     return df, de_pathways
 
 
+def apply_nonlinearity(activity: np.ndarray, mode: str, scale: float) -> np.ndarray:
+    """Transform true activity before it enters the linear expression combination.
+
+    ``mode="none"``: identity -- the original "friendly", exactly-linear generative
+    process (matches what a masked-linear decoder / linear ridge regression assumes).
+
+    ``mode="saturating"``: ``scale * tanh(activity / scale)`` -- a biologically
+    motivated nonlinearity (transcriptional responses to regulatory/pathway signal
+    commonly saturate, e.g. Michaelis-Menten-like kinetics), not an adversarial trick.
+    Small ``scale`` = strong saturation = a harder deviation from linearity. Breaks the
+    exact linear generative assumption that STAN's closed-form ridge regression (and any
+    purely linear method) depends on, while ground truth for evaluation purposes stays
+    the PRE-saturation activity -- the quantity we actually want a method to recover.
+    """
+    if mode == "none":
+        return activity
+    if mode == "saturating":
+        return scale * np.tanh(activity / scale)
+    raise ValueError(f"Unknown nonlinearity mode: {mode!r}")
+
+
+def add_pathway_interactions(
+    true_activity: pd.DataFrame,
+    genes: List[str],
+    mask: np.ndarray,
+    pathway_names: List[str],
+    n_interactions: int,
+    interaction_strength: float,
+    seed: int,
+) -> Tuple[np.ndarray, List[dict]]:
+    """Adds a bilinear (product-of-two-pathways) contribution to a subset of genes.
+
+    Returns (contribution [spots x genes], list of {pathway1, pathway2, genes} records
+    describing which pairs/genes were affected, for documentation/debugging).
+
+    Structurally different from ``apply_nonlinearity``: that one is still a function of a
+    SINGLE pathway's own activity (however nonlinear), so a linear method can still
+    partially track it via correlation with that one pathway. A product of TWO
+    pathways' activities cannot be written as `sum_p weight_p * activity_p` for any
+    choice of per-pathway weights -- no fixed linear design matrix D represents it,
+    which is exactly the assumption every method here except GRAPHIST's jointly-trained
+    nonlinear encoder is built on.
+    """
+    rng = np.random.default_rng(seed)
+    pathway_idx = {p: i for i, p in enumerate(pathway_names)}
+    contribution = np.zeros((true_activity.shape[0], len(genes)))
+    records = []
+
+    candidate_pairs = list(itertools.combinations(pathway_names, 2))
+    chosen = rng.choice(len(candidate_pairs), size=min(n_interactions, len(candidate_pairs)), replace=False)
+    for idx in chosen:
+        p1, p2 = candidate_pairs[idx]
+        genes_p1 = {g for i, g in enumerate(genes) if mask[i, pathway_idx[p1]] == 1}
+        genes_p2 = {g for i, g in enumerate(genes) if mask[i, pathway_idx[p2]] == 1}
+        candidates = sorted(genes_p1 | genes_p2)
+        if not candidates:
+            continue
+        n_affected = max(3, len(candidates) // 3)
+        affected = list(rng.choice(candidates, size=min(n_affected, len(candidates)), replace=False))
+
+        interaction_signal = interaction_strength * true_activity[p1].values * true_activity[p2].values
+        gene_pos = {g: i for i, g in enumerate(genes)}
+        for g in affected:
+            contribution[:, gene_pos[g]] += interaction_signal
+        records.append({"pathway1": p1, "pathway2": p2, "genes": affected})
+
+    return contribution, records
+
+
 def simulate_expression(
-    true_activity: pd.DataFrame, genes: List[str], mask: np.ndarray, noise_sd: float, seed: int
-) -> pd.DataFrame:
+    true_activity: pd.DataFrame,
+    genes: List[str],
+    mask: np.ndarray,
+    noise_sd: float,
+    seed: int,
+    nonlinearity: str = "none",
+    nonlinearity_scale: float = 1.0,
+    pathway_names: List[str] = None,
+    n_interactions: int = 0,
+    interaction_strength: float = 1.0,
+) -> Tuple[pd.DataFrame, List[dict]]:
     rng = np.random.default_rng(seed)
     n_spots = true_activity.shape[0]
     n_genes = len(genes)
     weights = rng.uniform(0.5, 1.5, size=mask.shape) * mask  # gene x pathway, zero outside mask
     baseline = rng.normal(0, 0.3, size=n_genes)
-    expr = true_activity.values @ weights.T + baseline
+    effective_activity = apply_nonlinearity(true_activity.values, nonlinearity, nonlinearity_scale)
+    expr = effective_activity @ weights.T + baseline
+
+    interaction_records = []
+    if n_interactions > 0:
+        interaction_contribution, interaction_records = add_pathway_interactions(
+            true_activity, genes, mask, pathway_names, n_interactions, interaction_strength, seed
+        )
+        expr += interaction_contribution
+
     expr += rng.normal(0, noise_sd, size=expr.shape)
-    return pd.DataFrame(expr, columns=genes, index=true_activity.index)
+    return pd.DataFrame(expr, columns=genes, index=true_activity.index), interaction_records
 
 
 def main():
@@ -147,6 +252,11 @@ def main():
     parser.add_argument("--de-effect-size", type=float, default=2.0)
     parser.add_argument("--spatial-smoothness", type=float, default=2.0)
     parser.add_argument("--noise-sd", type=float, default=0.5)
+    parser.add_argument("--nonlinearity", choices=["none", "saturating"], default="none")
+    parser.add_argument("--nonlinearity-scale", type=float, default=1.0)
+    parser.add_argument("--n-interactions", type=int, default=0,
+                         help="number of pathway pairs given a bilinear (product) interaction term")
+    parser.add_argument("--interaction-strength", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -158,7 +268,12 @@ def main():
         pathway_names, coords, groups, args.n_side,
         args.frac_de, args.de_effect_size, args.spatial_smoothness, args.seed,
     )
-    expression = simulate_expression(true_activity, genes, mask, args.noise_sd, args.seed)
+    expression, interaction_records = simulate_expression(
+        true_activity, genes, mask, args.noise_sd, args.seed,
+        nonlinearity=args.nonlinearity, nonlinearity_scale=args.nonlinearity_scale,
+        pathway_names=pathway_names, n_interactions=args.n_interactions,
+        interaction_strength=args.interaction_strength,
+    )
 
     os.makedirs(args.out_dir, exist_ok=True)
     expression.to_csv(os.path.join(args.out_dir, "st_expression.csv"))
@@ -169,9 +284,12 @@ def main():
     pd.Series(de_pathways, name="pathway").to_csv(
         os.path.join(args.out_dir, "true_de_pathways.csv"), index=False)
     write_gmt(selected_gmt, os.path.join(args.out_dir, "pathways.gmt"))
+    if interaction_records:
+        pd.DataFrame(interaction_records).to_csv(os.path.join(args.out_dir, "true_interactions.csv"), index=False)
 
     print(f"Simulated {len(spot_ids)} spots x {len(genes)} genes, {len(pathway_names)} pathways "
-          f"({len(de_pathways)} truly DE between groups). Written to {args.out_dir}")
+          f"({len(de_pathways)} truly DE between groups, {len(interaction_records)} interacting pairs). "
+          f"Written to {args.out_dir}")
 
 
 if __name__ == "__main__":
