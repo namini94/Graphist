@@ -136,9 +136,44 @@ survives), but loses badly once it isn't. That's a much more complete and honest
 wins everything," and it's backed by five separate, independently-reasoned generative scenarios rather
 than one tuned to produce a predetermined answer.
 
+**Sixth scenario, sim6_realistic: is any of this an artifact of hand-rolled Gaussian noise?** The five
+scenarios above all generate expression as pathway activity plus *additive Gaussian* noise — a reasonable
+first pass, but with no guarantee its noise characteristics resemble real ST data. To check, we built a
+noise backbone genuinely grounded in real data: `fit_realistic_backbone.R` fits scDesign3's per-gene
+negative-binomial marginal model (spatially-smooth mean via a GP spline, gene-specific dispersion;
+deliberately skips the expensive gene-gene copula step, which isn't needed for spot/gene marginal realism)
+to real 10x **human lymph node** Visium data (chosen specifically because it's *not* PDAC or BRCA-PACSI —
+neither is central to GRAPHIST's own paper results, so this also doubles as a broader-applicability check),
+then evaluates that fitted (mean, dispersion) surface at our synthetic 30x30 grid coordinates. Known pathway
+activity is then injected multiplicatively on the log-mean (standard NB-GLM log link) and counts are drawn
+from the resulting per-spot, per-gene negative binomial — not additive Gaussian noise on a linear
+combination. The pathway panel is necessarily the 29 (of 30) sim1 pathways with enough member genes
+actually detected in real lymph node data (600 of 732 panel genes survived); generative process is
+otherwise linear-in-log-mean, no nonlinearity/interactions layered on top (that axis is already covered by
+sim3-sim5).
+
+| Scenario | Generative process | Winner (mean Pearson) | DE F1 |
+|---|---|---|---|
+| **sim6_realistic** (real lymph node NB backbone) | linear-in-log-mean, real NB noise | **STAN 0.836** > GRAPHIST 0.787 > ULM 0.726 ≈ GSVA 0.716 > VEGA 0.661 | STAN 1.00, GRAPHIST≈VEGA 0.50, ULM≈GSVA 0.36 |
+
+Same qualitative story as the other purely-linear scenarios (sim1, sim2_hard, sim4_interaction): STAN's
+closed-form ridge regression is well-matched to a linear generative process and wins on correlation and
+DE-F1 here too, real noise or not. The result that *does* carry over cleanly is the spatial-denoising
+claim: GRAPHIST still clearly beats its own non-spatial VEGA ablation (0.787 vs. 0.661 correlation; recall@5
+0.636 vs. 0.551, notably higher even though DE F1 ties at 0.50) — confirming that advantage isn't an
+artifact of the Gaussian-noise simulator, it holds under real, spatially-structured NB count noise as well.
+decoupleR's methods (ULM, GSVA) over-call DE substantially here (27/29 pathways flagged, precision 0.22) —
+more so than in the Gaussian-noise scenarios, suggesting real spatial noise structure is genuinely harder
+on non-spatial per-spot methods' specificity than the simpler additive model was.
+
 **Not yet run for Task B**: PaaSc, EnrichMap (both confirmed-available, not yet implemented). Held-out
-gene reconstruction and the lymph-node known-biology check are also still pending (need real data,
-disk-gated).
+gene reconstruction and the lymph-node known-biology (germinal center) check are also still pending —
+the latter uses this same lymph node dataset/coordinates already downloaded for sim6_realistic.
+SRTsim (an ST-purpose-built alternative simulator, preserves real per-gene spatial autocorrelation
+structure via reference-based resampling rather than a fitted GP-spline surface) was considered as a
+second, independently-sourced realistic backbone; its `sf` dependency needs a heavy Homebrew
+GDAL/GEOS/PROJ stack (~1-2GB+) not yet installed (disk-gated, same recurring constraint as the real-data
+downloads above).
 
 ## Roadmap
 
@@ -164,7 +199,9 @@ benchmarking/
 │   ├── run_graphist.py
 │   └── evaluate.py
 ├── task_b_pathway_activity/
-│   ├── simulate_pathway_activity.py
+│   ├── simulate_pathway_activity.py    # sim1-sim5: additive-Gaussian-noise generative process
+│   ├── fit_realistic_backbone.R        # scDesign3 fit: real lymph node -> (mu, sigma) at synthetic coords
+│   ├── simulate_realistic_scenario.py  # sim6_realistic: known activity injected on the real NB backbone
 │   ├── baselines/{run_stan.py, run_decoupler.py}
 │   ├── run_graphist.py
 │   ├── heldout_gene_reconstruction.py
