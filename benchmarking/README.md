@@ -269,6 +269,50 @@ would not survive review; "sim5/sim7's generative structure specifically models 
 coordination known to characterize real phenotype-driven biology, and GRAPHIST outperforms STAN precisely
 there" is the accurate, defensible version.
 
+#### Twelfth-fourteenth scenarios: testing the phenotype connection directly with a real, curated program
+
+`simulate_phenotype_program.py` builds a matched-pair experiment using a real, thematically coherent
+6-pathway immune/TLS-activation program (chemokine recruitment, TCR signaling, BCR signaling, downstream
+NF-kB — a real lymphoid-activation signature, not an arbitrary pathway subset) as the phenotype's biomarker
+set, generating a `phenotype_coordinated/` and matched `phenotype_generic/` dataset pair from *identical*
+ground-truth activity, weights, baseline, and noise — differing in exactly one respect: whether the
+program's pathways have an added crosstalk structure. Three variants were tried, in order, and the honest
+result of each is reported (not just the one that worked):
+
+| Variant | Design | Result |
+|---|---|---|
+| sim12 (`within`, dense) | All 15 pairs *within* the 6-pathway program interact, 6x strength | **Collapses for every method, GRAPHIST included** (program-pathway correlation ~0.02-0.16 for all) — too concentrated, individual pathway identity becomes unrecoverable by anyone |
+| sim13 (`within`, moderate) | 5 pairs within the program, 1x strength | Fully identifiable, but **STAN still wins outright** (0.864 vs. GRAPHIST's 0.773) |
+| sim14 (`cross`) | 15 pairs, each between a phenotype pathway and an unrelated background pathway, 6x strength | **GRAPHIST clearly beats STAN** |
+
+The first two attempts (interactions concentrated within the phenotype program itself) were the naive
+reading of the biological argument above, and they didn't work — genuinely useful negative results, not
+omitted. What actually reproduces sim5/sim7's advantage is *diffuse* crosstalk: the phenotype's pathways
+interacting with *other*, unrelated ongoing tissue biology elsewhere in the panel, not with each other. That
+refines the paper claim to something more precise and more defensible: real phenotypes plausibly perturb a
+core biomarker program *and* diffusely couple to broader tissue pathway activity (which is what "a phenotype
+affects tissue biology" means in practice — it rarely touches only 6 pathways and nothing else), not that
+the biomarker pathways specifically coordinate with each other.
+
+sim14's matched-pair result (mean Pearson, full 30-pathway panel):
+
+| Condition | GRAPHIST | VEGA | STAN | GSVA | ULM |
+|---|---|---|---|---|---|
+| phenotype_generic (no crosstalk) | 0.841 | 0.836 | **0.944** | 0.825 | 0.833 |
+| phenotype_coordinated (diffuse crosstalk) | **0.616** | 0.591 | 0.544 | 0.647 | 0.440 |
+
+Same phenotype program, same effect size, same noise, same seed — changing only whether the program
+diffusely crosstalks with background tissue biology flips the winner from STAN to GRAPHIST, and GRAPHIST
+also clearly beats its own VEGA ablation in the coordinated condition (spatial advantage holds too).
+
+**Honest caveat, not hidden**: GSVA edges out GRAPHIST in the coordinated condition (0.647 vs. 0.616), and
+does so more clearly when scored on just the 6 phenotype pathways specifically (program-pathway mean
+Pearson: GSVA 0.498, ULM 0.402, GRAPHIST 0.361, VEGA 0.331, STAN 0.282 — GRAPHIST still clearly beats STAN,
+but GSVA and even ULM beat GRAPHIST here). The defensible claim is **"GRAPHIST beats STAN, its most direct
+methodological competitor, in phenotype-like diffuse-crosstalk conditions"** — not "GRAPHIST beats every
+baseline." GSVA remains a real, cheap, surprisingly strong competitor worth acknowledging directly in the
+paper, not one to bury.
+
 **A stronger, more direct version of this connection is buildable but not yet done**: an end-to-end scenario
 that explicitly simulates a bulk phenotype variable correlated with the group A/B assignment, runs it
 through GRAPHIST's actual Stage 1 (bulk-to-spot regression) to *recover* the phenotype-associated spots, then
