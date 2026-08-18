@@ -346,6 +346,47 @@ unconditional here, unlike the STAN advantage which specifically requires crosst
 winner) — reinforcing that GSVA is a genuinely close, real competitor throughout the regime, not just an
 artifact of sim14's specific setting.
 
+#### Sixteenth scenario: does this survive combining with REAL noise characteristics?
+
+`simulate_realistic_phenotype_scenario.py` combines the two findings that mattered most this session: the
+diffuse-crosstalk mechanism (sim14/15) and the scDesign3 real-lymph-node NB backbone (sim6_realistic).
+Required refitting the backbone on the phenotype program's own gene panel (`lymph_node_phenotype/`,
+re-downloaded via `sc.datasets.visium_sge`, since sim6_realistic's backbone was fit on sim1's unrelated
+732-gene panel) — 625/634 genes survived (9 dropped for a NaN dispersion fit). Used sim15's peak-advantage
+setting (40 diffuse cross-group pairs, 6x strength). One real implementation issue surfaced and fixed:
+the raw accumulated interaction contribution is heavy-tailed (a phenotype pathway participates in several
+of the 40 pairs at once, so some genes accumulate contributions from multiple pairs, reaching ~100+) —
+unlike the additive-Gaussian model sim14/15 used, exponentiating an unbounded value in the NB log-link
+exploded into astronomical counts (mean count 43,135 on a first attempt). Fixed by squashing the
+contribution through `tanh(x / 10) * 10` before scaling, bounding the worst-case log-mean shift regardless
+of accumulation.
+
+| Condition | GRAPHIST full | STAN full | GRAPHIST program-only | STAN program-only |
+|---|---|---|---|---|
+| generic (no crosstalk) | 0.740 | **0.821** | 0.873 | **0.900** |
+| coordinated (diffuse crosstalk) | **0.479** | 0.463 | 0.458 | **0.478** |
+
+**Reported honestly, not smoothed over — this is a more mixed result than sim14's clean synthetic
+version.** GRAPHIST does still lead on full-panel correlation in the coordinated condition, but the margin
+shrank sharply under real noise (sim14's synthetic +0.072 gap → +0.016 here). More notably, **on the 6
+actual phenotype-biomarker pathways specifically, STAN edges GRAPHIST out** (0.478 vs. 0.458) — the
+sharpest form of the claim ("GRAPHIST better recovers the phenotype's own biomarkers under diffuse
+crosstalk") does not fully survive real NB noise, even though it held in the idealized synthetic version.
+
+**What does hold robustly, in every variant tried this session, synthetic or real-noise-grounded**:
+GRAPHIST clearly beats its own VEGA ablation in *both* conditions here (0.740 vs. 0.623 generic, 0.479 vs.
+0.438 coordinated) — the spatial-graph advantage is the most durable finding in the whole suite. DE-F1 is a
+wash at this setting (GRAPHIST/STAN/VEGA all hit perfect 1.0 in the coordinated condition).
+
+**Honest interpretation for the paper**: the diffuse-crosstalk mechanism is real (confirmed by the dose-
+response sweep) but its *magnitude* under idealized Gaussian noise is larger than under realistic,
+zero-inflated NB noise — likely because real noise's own variance already dominates more of the total
+signal, leaving less room for the crosstalk structure specifically to matter relative to STAN's baseline
+competence. The full-panel GRAPHIST-over-STAN lead and the VEGA-ablation advantage are the two claims that
+survive contact with real noise; "GRAPHIST specifically nails the phenotype's own biomarker pathways
+better than STAN" is the more fragile, synthetic-only version of the claim and shouldn't be overstated in
+the manuscript without this caveat attached.
+
 **A stronger, more direct version of this connection is buildable but not yet done**: an end-to-end scenario
 that explicitly simulates a bulk phenotype variable correlated with the group A/B assignment, runs it
 through GRAPHIST's actual Stage 1 (bulk-to-spot regression) to *recover* the phenotype-associated spots, then
