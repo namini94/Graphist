@@ -193,6 +193,52 @@ d > 0.3) that's sensitive to each method's prediction variance/calibration in a 
 — worth flagging as a limitation of the current DE-calling threshold rather than evidence GRAPHIST's
 underlying activity estimates are worse here.
 
+**Eighth/ninth scenarios, sim8_weak_de / sim9_vweak_de: does GRAPHIST hold up better under weak DE signal
+plus spatial noise?** Hypothesis: per-spot regression should lose sensitivity to subtle biomarkers faster
+than GRAPHIST's spatially-averaging encoder as the true DE effect shrinks. Tested by re-running sim2_hard's
+noise level (`--noise-sd 1.5`) at `--de-effect-size 1.0` and `0.5` (vs. the 2.0 default).
+
+**This is a null result — reported as such, not omitted.** Correlation for every method actually *improves*
+as the effect size shrinks (STAN 0.878→0.953, GRAPHIST 0.874→0.899 from sim2_hard to sim9_vweak_de), and
+STAN's lead *widens*, not narrows. The mechanism: `de_effect_size` adds a sharp step-like group-mean shift
+on top of an otherwise smooth spatial field for the 6 DE pathways only; a larger step means more of that
+pathway's total variance comes from a discontinuity that's somewhat harder for every method (spatial or
+not) to reproduce exactly than the smooth background is — so bigger effect sizes drag correlation down
+across the board, an artifact of this simulator's DE-injection design rather than a real noise-robustness
+signal. DE-F1 tells the same story: STAN holds perfect 1.00 across all three effect sizes; GRAPHIST/VEGA's
+F1 mildly degrades as the signal weakens (0.86→0.80→0.80/0.71). No crossover point found in this design —
+worth revisiting with a differently-shaped weak-signal injection (e.g. shrinking the *whole* field's
+variance rather than adding a smaller step) if this angle is worth pursuing further for the paper.
+
+**Tenth/eleventh scenarios, sim10_sparse / sim11_vsparse: does the spatial graph compensate for dropout?**
+Real Visium data is substantially zero-inflated (sim6_realistic was 40.6% zero); this tests robustness as
+sparsity increases further. Extended `simulate_realistic_scenario.py` with `--depth-scale`, which multiplies
+the realistic mean before NB sampling — simulating reduced sequencing depth, which naturally increases
+zero-inflation through the NB process itself (lower mean → more zeros) rather than an artificial independent
+dropout mask. Swept `--depth-scale 0.3` (59.8% zero) and `0.1` (74.7% zero) against the `sim6_realistic`
+depth=1.0 (40.6% zero) anchor.
+
+| Zero fraction | GRAPHIST | VEGA | STAN | GRAPHIST − VEGA gap |
+|---|---|---|---|---|
+| 0.41 (sim6_realistic) | 0.787 | 0.661 | 0.836 | 0.126 |
+| 0.60 (sim10_sparse) | 0.727 | 0.529 | 0.757 | 0.198 |
+| 0.75 (sim11_vsparse) | 0.639 | 0.403 | 0.661 | **0.236** |
+
+(mean Pearson correlation to ground truth; DE F1 at the same three points: STAN 1.00→0.92→0.91,
+GRAPHIST 0.50→0.46→0.50, VEGA 0.50→0.55→0.63, GSVA/ULM 0.36→0.37-0.38→0.40-0.43.)
+
+**Partial, honest result — not a clean sweep.** STAN still leads on raw correlation at every sparsity level
+tested (up to 75% zero); GRAPHIST does not overtake it in this range. But the **GRAPHIST − VEGA gap widens
+monotonically and substantially with sparsity** (0.126 → 0.198 → 0.236) — i.e. the spatial graph's specific
+contribution grows almost 2x as dropout increases from realistic (41%) to severe (75%). That's the cleanest,
+most mechanistically sensible finding in this sweep: spatial averaging matters most exactly when per-spot
+signal is noisiest/sparsest, which is precisely the real-world condition (low-quality or low-depth spots)
+where it should. STAN's own absolute correlation also degrades with sparsity (0.836→0.661), just proportionally
+less than VEGA's non-spatial baseline does — so the honest framing is "GRAPHIST's spatial-graph advantage over
+not having one grows under realistic dropout," not "GRAPHIST beats STAN under dropout," which isn't what the
+data shows in this range. Worth extending to even sparser (`--depth-scale` < 0.1) to see if the narrowing
+STAN-vs-GRAPHIST gap ever crosses over.
+
 **Not yet run for Task B**: PaaSc, EnrichMap (both confirmed-available, not yet implemented). Held-out
 gene reconstruction and the lymph-node known-biology (germinal center) check are also still pending —
 the latter uses this same lymph node dataset/coordinates already downloaded for sim6_realistic.

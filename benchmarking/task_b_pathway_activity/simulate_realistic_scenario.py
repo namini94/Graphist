@@ -97,6 +97,11 @@ def main():
                          help="log-mean multiplier for the injected pathway-activity signal; "
                               "kept modest since it stacks additively per gene across all pathways "
                               "the gene belongs to")
+    parser.add_argument("--depth-scale", type=float, default=1.0,
+                         help="multiplies the realistic per-spot mean before NB sampling, simulating "
+                              "reduced sequencing depth -- naturally increases zero-inflation through the "
+                              "NB process itself (lower mean -> more zeros), rather than an artificial "
+                              "independent dropout mask. 1.0 = the real lymph node data's own depth.")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     rng = np.random.default_rng(args.seed)
@@ -128,7 +133,7 @@ def main():
 
     weights = rng.uniform(0.5, 1.5, size=mask.shape) * mask  # genes x pathways
     log_effect = args.effect_scale * (true_activity.values @ weights.T)  # spots x genes
-    mu_final = mu.values * np.exp(log_effect)
+    mu_final = mu.values * args.depth_scale * np.exp(log_effect)
 
     counts = sample_negative_binomial(mu_final, sigma.values.mean(axis=0), rng)  # sigma constant per gene
     counts_df = pd.DataFrame(counts, index=spot_ids, columns=genes)
