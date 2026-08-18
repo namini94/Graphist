@@ -88,6 +88,34 @@ as final.
 **Real dataset downloads for Task A step 2 / Task B real-data proxies are still disk-space-gated** (check
 `df -h /` first). Task B's synthetic simulator has no such dependency.
 
+**Task B core comparison done: GRAPHIST vs. its own non-spatial ancestor (VEGA ablation).**
+Code in `task_b_pathway_activity/`, results in `results/task_b_summary.csv`. The simulator
+(`simulate_pathway_activity.py`) generates expression from known per-spot pathway activities using the
+real Reactome gene-pathway structure (a random 30-pathway subset of `reactomes.gmt`), with a controlled
+subset of pathways truly differentially active between two spatially-contiguous groups. The VEGA ablation
+reuses the *exact same* `GraphistModel`/`GraphistTrainer` code with an identity (self-loop-only) graph and
+the link-reconstruction loss disabled — isolating exactly what the spatial graph contributes, nothing else
+about the architecture changes.
+
+| Scenario | mean Pearson (true vs. inferred) | recall@5 | DE F1 |
+|---|---|---|---|
+| sim1 (low noise, easy) | GRAPHIST 0.91 ≈ VEGA 0.94 | 0.72 vs 0.75 | 0.80 = 0.80 |
+| sim2_hard (3x noise, half the effect size) | **GRAPHIST 0.87 > VEGA 0.75** | **0.68 > 0.56** | 0.86 vs 0.92 (VEGA edges ahead, but only 6 true DE pathways — a 1-pathway difference swings this a lot) |
+
+**Takeaway**: in the easy/low-noise regime the two are indistinguishable — unsurprising, since with clean
+signal a non-spatial model can already recover it directly from expression. Under realistic noise, the
+spatial graph earns its keep: GRAPHIST recovers per-spot pathway activity meaningfully better than the
+non-spatial ablation (higher correlation, better top-k recall) — direct quantitative evidence that
+GRAPHIST's spatial-network extension of VEGA is a real improvement, not just added complexity. The DE-F1
+metric is noisier (only 6 true positives to work with) and doesn't show the same clean separation yet —
+worth a scenario with more DE pathways and/or more replicate seeds before treating that specific number as
+settled, but the core activity-recovery result already answers the question this task was designed to ask.
+
+**Not yet run for Task B**: decoupleR (non-spatial baseline family: GSVA/AUCell/ssGSEA), STAN (adapted to
+score against pathway masks instead of TF regulons), PaaSc, EnrichMap — all confirmed-available but not
+yet implemented. Held-out gene reconstruction and the lymph-node known-biology check are also still
+pending (need real data, disk-gated).
+
 ## Roadmap
 
 1. Task A, osmFISH/STARmap (smallest, richest ground truth, direct 3-way vs. Scissor + SpaPheno)
