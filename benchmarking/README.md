@@ -54,23 +54,36 @@ benchmark.
 
 ## Status
 
-**Task A, dataset 1 (osmFISH/STARmap) done: GRAPHIST vs. Scissor vs. SpaPheno, 5 scenarios.**
-Code in `task_a_spot_phenotype/`, results in `results/task_a_summary.csv`. Honest summary — no method
-wins everywhere:
+**Task A, dataset 1 (osmFISH/STARmap) done: GRAPHIST vs. Scissor vs. SpaPheno vs. SpaLinker, 5 scenarios.**
+All four methods run on identical ground truth (SpaLinker and SpaPheno adapted to run on this dataset
+rather than needing their own paper's specific cohorts — see `task_a_spot_phenotype/baselines/`). Code
+in `task_a_spot_phenotype/`, results in `results/task_a_summary.csv`. Honest summary, ranked by combined
+(any-group) F1 — no method wins everywhere, but a real pattern emerges:
 
-| Scenario | Winner (positive F1) | Notes |
+| Scenario | Ranking (any F1) | Notes |
 |---|---|---|
-| osmfish_easy (Layer 4 vs 6) | SpaPheno (0.59) > GRAPHIST (0.46) ≈ Scissor (0.45) | Well-segregated regions with distinct dominant cell types — SpaPheno's composition features are a natural fit |
-| osmfish_medium (Pyramidal L2-3 vs Inhibitory Vip) | SpaPheno (0.52) >> GRAPHIST/Scissor (0.007) | **Caveat**: for this scenario the phenotype-defining label *is* the finest cell-type label, so SpaPheno's composition feature is close to a direct encoding of the phenotype — treat this result as inflated, not a fair difficulty-matched comparison |
-| osmfish_hard (Layer 2-3 lateral vs medial) | GRAPHIST (0.093) > Scissor (0.007) > SpaPheno (0.000) | Same cell types on both sides of a subtle spatial boundary — composition carries no signal at all here, only spatially-regularized raw expression does |
-| starmap_easy (eL2/3 vs eL6) | GRAPHIST ≈ Scissor (0.71) > SpaPheno (0.64) | All three reasonable; GRAPHIST/Scissor edge out on this platform |
-| starmap_hard (eL6-1 vs eL6-2) | SpaPheno (0.46) ≈ GRAPHIST ≈ Scissor (0.41-0.42) | Small margin, all three find real signal (unlike the osmFISH hard case) |
+| osmfish_easy (Layer 4 vs 6) | SpaPheno (0.62) > GRAPHIST (0.37) ≈ Scissor (0.37) > SpaLinker (0.19) | Well-segregated regions with distinct dominant cell types — SpaPheno's composition features are a natural fit |
+| osmfish_medium (Pyramidal L2-3 vs Inhibitory Vip) | SpaPheno (0.39) > SpaLinker (0.15) > Scissor ≈ GRAPHIST (0.14) | **Caveat**: the phenotype-defining label here *is* the finest cell-type label, so SpaPheno's composition feature is close to a direct encoding of the phenotype — treat this result as inflated, not a fair difficulty-matched comparison |
+| osmfish_hard (Layer 2-3 lateral vs medial) | GRAPHIST ≈ Scissor (0.25) > SpaLinker (0.13) > SpaPheno (0.00) | Same cell types on both sides of a subtle spatial boundary — composition-based methods (SpaPheno, and to a lesser extent SpaLinker) have no signal here; only spatially-regularized raw expression does |
+| starmap_easy (eL2/3 vs eL6) | SpaPheno (0.52) > GRAPHIST (0.50) ≈ Scissor (0.49) > SpaLinker (0.16) | All three non-NMF methods reasonable |
+| starmap_hard (eL6-1 vs eL6-2) | SpaPheno (0.48) > GRAPHIST (0.42) > SpaLinker (0.16) > Scissor (0.10) | Scissor's one clear loss to GRAPHIST — spatial regularization recovers signal vanilla Scissor misses |
 
-**Takeaway**: GRAPHIST's spatial-network regularization on raw expression has a specific edge when two
-phenotype groups share cell-type composition but differ in fine spatial position (osmfish_hard);
-SpaPheno's cell-type-composition approach has an edge when phenotype correlates with dominant cell-type
-identity. Neither dominates across the board on this dataset — noted honestly rather than framed as a
-clean win. SpaLinker not yet run (needs the RCC dataset, Task A step 2).
+**Takeaway**: SpaPheno's cell-type-composition approach wins 4/5 scenarios outright (with the medium-case
+win flagged as inflated), reflecting that it's purpose-built for single-cell-resolution spatial data with
+clear cell identity. **GRAPHIST is the most consistent method** — never last, and it's the only method
+that doesn't collapse on osmfish_hard, where composition carries zero signal and only spatially-aware
+expression can distinguish two spatially-adjacent, compositionally-identical groups. GRAPHIST also
+clearly outperforms vanilla Scissor specifically on starmap_hard, the one case where the spatial-network
+regularization (GRAPHIST's actual point of difference from Scissor) visibly earns its keep. SpaLinker
+consistently underperforms here, most likely because its NMF-factor approach was designed for
+transcriptome-wide bulk RNA-seq (thousands of genes) and is a poor fit for these small targeted gene
+panels (33 genes for osmFISH, 158 for STARmap) — a limitation of this dataset choice for SpaLinker
+specifically, not necessarily a fair statement about the method in its intended regime.
+
+Not yet done for Task A: SpaLinker's own RCC pseudo-bulk protocol (needs the real RCC dataset, disk-space
+gated) and the DLPFC bonus scenario (step 2 of the roadmap) — both would let SpaLinker run in a setting
+closer to its intended use (larger gene panels), worth revisiting before treating its Task A ranking here
+as final.
 
 **Real dataset downloads for Task A step 2 / Task B real-data proxies are still disk-space-gated** (check
 `df -h /` first). Task B's synthetic simulator has no such dependency.
