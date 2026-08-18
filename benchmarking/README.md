@@ -577,6 +577,48 @@ Stage 2 on the recovered (not ground-truth) groups — testing the full pipeline
 recovery jointly, rather than Task A and Task B's mechanisms being validated separately. Worth doing if this
 narrative becomes a paper section rather than just discussion framing.
 
+#### Seventeenth scenario: does this survive a realistic Background/+/- structure, not a clean 50/50 split?
+
+A real gap, caught by review rather than assumed away: every scenario through sim16 modeled the *entire*
+tissue as a clean two-way split — group A/B each a full, spatially-contiguous half of the grid. That does
+not match what Stage 1 actually produces on real data: a Scissor-style regression typically yields
+**three** categories — Graphist(+), Graphist(-), and **Background** (spots not significantly
+phenotype-associated at all) — where Background is usually the majority, and +/- are smaller, scattered
+minority populations, not each a clean half of the tissue.
+
+`simulate_realistic_group_structure.py` rebuilds the same phenotype program + diffuse-crosstalk mechanism
+(sim15's peak-advantage dose, 40 cross-group pairs) on a proper 3-way structure instead: Background = the
+majority (no phenotype-driven signal at all, exactly zero shift by construction), Graphist(+)/(-) = several
+small scattered Gaussian-blob patches each (not one contiguous block) — closer to how real Stage 1 output
+looks spatially. Stage 2 runs on the **whole dataset** (Background included, matching real usage — Stage 2
+infers using spatial context from every neighboring spot regardless of phenotype status); the DE test then
+compares only Graphist(+) vs. Graphist(-) (Background excluded from the test itself, matching how the real
+biomarker-discovery step works). Realized split: Background 641 (71%), Graphist(+) 166 (18%), Graphist(-)
+93 (10%) of 900 spots.
+
+| Method | Full-panel corr. | Program corr. (6 pathways) | DE-F1 (+ vs -, Background excluded) |
+|---|---|---|---|
+| GRAPHIST | 0.437 | **0.259** | **1.00** (6/6) |
+| VEGA | 0.409 | 0.242 | **1.00** (6/6) |
+| STAN | 0.340 | 0.203 | 0.80 (4/6) |
+| GSVA | **0.474** | 0.206 | 0.91 (5/6) |
+| ULM | 0.344 | 0.157 | 0.80 (4/6) |
+
+**The core finding survives.** GRAPHIST beats STAN on every metric — full-panel correlation, phenotype-
+program correlation, and critically the DE-F1 that maps directly to the real biomarker-discovery use case:
+GRAPHIST recovers all 6 true DE pathways, STAN misses 2 of 6. GSVA edges GRAPHIST out on raw full-panel
+correlation (consistent with every other scenario — it remains a real, close competitor, not eliminated
+by this harder structure), but not on the metric that matters most for the actual downstream task.
+
+**One nuance worth being precise about, not glossed over**: VEGA ties GRAPHIST on DE-F1 here (both 6/6) —
+in this specific run, the DE-calling advantage isn't cleanly attributable to the spatial graph on its own;
+GRAPHIST's edge over VEGA shows up in the continuous correlation metrics (0.437 vs. 0.409 full-panel, 0.259
+vs. 0.242 program) rather than this particular threshold-based one. Consistent with the pattern seen
+throughout the suite: DE-F1's binary threshold is a coarser, less sensitive instrument than raw correlation
+for detecting the spatial advantage specifically, even when the advantage is genuinely present.
+
+Data/script: `simulate_realistic_group_structure.py`, `data/task_b/sim17_realistic_groups/`.
+
 #### The lymph-node known-biology (GC) check: does this connect steps 1 and 3 more directly?
 
 Not synthetic, not a crosstalk-only measurement — this runs GRAPHIST's and STAN's *actual* Stage 2
