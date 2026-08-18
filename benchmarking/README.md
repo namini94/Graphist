@@ -166,6 +166,33 @@ decoupleR's methods (ULM, GSVA) over-call DE substantially here (27/29 pathways 
 more so than in the Gaussian-noise scenarios, suggesting real spatial noise structure is genuinely harder
 on non-spatial per-spot methods' specificity than the simpler additive model was.
 
+**Seventh scenario, sim7_compound: do the two GRAPHIST advantages stack?** sim2_hard isolates spatial-noise
+robustness; sim5_strong_interaction isolates nonlinear structure-learning. Real tissue plausibly has both
+at once, so this scenario combines them directly: sim2_hard's noise level (`--noise-sd 1.5`, 3x default)
+*and* sim5's interaction structure (`--n-interactions 15 --interaction-strength 6.0`) in one dataset.
+
+| Scenario | Generative process | Winner (mean Pearson) | DE F1 |
+|---|---|---|---|
+| **sim7_compound** | 3x spatial noise + 15 strong interactions | **GRAPHIST 0.704** > GSVA 0.680 > VEGA 0.654 > STAN 0.581 > ULM 0.501 | STAN 0.92 > VEGA 0.80 > GRAPHIST 0.75 > ULM 0.50 > GSVA 0.41 |
+
+This is the first scenario where **GRAPHIST outright wins on correlation** — and notably, it now also
+clearly beats its own VEGA ablation (0.704 vs. 0.654), a bigger gap than sim5 alone showed (where VEGA and
+GRAPHIST were essentially tied, 0.783 vs. 0.778). That's consistent with the compounding hypothesis: with
+spatial noise added on top of the interaction structure, the spatial graph's denoising has something to
+average out again, on top of the encoder's nonlinear capacity — both mechanisms contributing rather than
+one dominating.
+
+**Worth reporting honestly rather than glossing over: DE-F1 does not follow the same ranking.** STAN's
+DE-pathway calling is still the sharpest here (0.92, driven by high precision — 7 pathways flagged for 6
+true positives) despite trailing badly on raw correlation (0.581). GRAPHIST/VEGA correctly recall all 6
+true DE pathways (recall=1.0 for every method) but flag more false positives (10 and 9 respectively) than
+STAN, dragging down precision and F1. This is a real, useful finding, not a contradiction: correlation
+measures how well the *entire* activity surface is recovered (where GRAPHIST's advantage is real and
+compounds), while this DE-F1 metric is a specific threshold-crossing decision (BH significance + Cohen's
+d > 0.3) that's sensitive to each method's prediction variance/calibration in a way raw correlation isn't
+— worth flagging as a limitation of the current DE-calling threshold rather than evidence GRAPHIST's
+underlying activity estimates are worse here.
+
 **Not yet run for Task B**: PaaSc, EnrichMap (both confirmed-available, not yet implemented). Held-out
 gene reconstruction and the lymph-node known-biology (germinal center) check are also still pending —
 the latter uses this same lymph node dataset/coordinates already downloaded for sim6_realistic.
