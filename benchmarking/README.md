@@ -239,6 +239,43 @@ not having one grows under realistic dropout," not "GRAPHIST beats STAN under dr
 data shows in this range. Worth extending to even sparser (`--depth-scale` < 0.1) to see if the narrowing
 STAN-vs-GRAPHIST gap ever crosses over.
 
+### Connecting the mechanism findings to the paper's actual motivation
+
+Why sim5/sim7's advantage over STAN isn't just "we found a synthetic setting where GRAPHIST wins" — it's
+directly relevant to the paper's real use case (phenotype-driven pathway biomarker discovery), for a
+specific, citable biological reason, not because it's convenient:
+
+**Real phenotype-driven tissue states are coordinated multi-pathway crosstalk, not one pathway shifting in
+isolation.** This is established biology: EMT phenotypes involve synergistic TGF-β/WNT/cytoskeletal
+crosstalk; hypoxia phenotypes involve HIF1A-coupled glycolysis/angiogenesis/immune-evasion signaling; TLS
+presence (the phenotype SpaLinker itself validates on) involves coordinated chemokine signaling + B/T-cell
+activation + germinal-center reaction pathways; immune-excluded vs. -inflamed tumor phenotypes involve
+coupled immune-checkpoint and stromal signaling. None of these are additive single-pathway effects — this
+is exactly the generative structure sim5/sim7's bilinear pathway-interaction terms are a synthetic stand-in
+for, and exactly the regime where no fixed linear gene-pathway design matrix (STAN's, or any per-spot
+regression's) can represent the signal, while GRAPHIST's jointly-trained nonlinear encoder can.
+
+There's also a structural reason this maps directly rather than by analogy: the simulator's group A/B split
+*already is* mechanically identical to Graphist(+)/Graphist(-) — same differential-pathway-biomarker-
+discovery framing GRAPHIST's Stage 2 actually performs on real data. So relabeling sim5/sim7 as
+"phenotype-positive vs. phenotype-negative" for the paper is accurate, not a stretch.
+
+**The honest line to hold in the manuscript**: this is a *mechanistic motivation*, grounded in real,
+citable biology, for why GRAPHIST's architecture should have an advantage specifically in phenotype-driven
+settings — not a literal empirical demonstration run on real phenotype-labeled data (no baseline here,
+including STAN, does phenotype-driven spot classification at all; that's Task A, evaluated separately with
+different baselines). Overclaiming "we proved GRAPHIST beats STAN on phenotype data" from these results
+would not survive review; "sim5/sim7's generative structure specifically models the kind of multi-pathway
+coordination known to characterize real phenotype-driven biology, and GRAPHIST outperforms STAN precisely
+there" is the accurate, defensible version.
+
+**A stronger, more direct version of this connection is buildable but not yet done**: an end-to-end scenario
+that explicitly simulates a bulk phenotype variable correlated with the group A/B assignment, runs it
+through GRAPHIST's actual Stage 1 (bulk-to-spot regression) to *recover* the phenotype-associated spots, then
+Stage 2 on the recovered (not ground-truth) groups — testing the full pipeline's phenotype-to-biomarker
+recovery jointly, rather than Task A and Task B's mechanisms being validated separately. Worth doing if this
+narrative becomes a paper section rather than just discussion framing.
+
 **Not yet run for Task B**: PaaSc, EnrichMap (both confirmed-available, not yet implemented). Held-out
 gene reconstruction and the lymph-node known-biology (germinal center) check are also still pending —
 the latter uses this same lymph node dataset/coordinates already downloaded for sim6_realistic.
